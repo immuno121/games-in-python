@@ -1,141 +1,131 @@
-import pygame,random,sys
+
+import random, pygame, sys
 from pygame.locals import *
 
-FPS=30
-WINDOWWIDTH=640
-WINDOWHEIGHT=480
-REVEALSPEED=8
-BOXSIZE=40
-GAPSIZE=10
+FPS = 30 # frames per second, the general speed of the program
+WINDOWWIDTH = 640 # size of window's width in pixels
+WINDOWHEIGHT = 480 # size of windows' height in pixels
+REVEALSPEED = 8 # speed boxes' sliding reveals and covers
+BOXSIZE = 40 # size of box height & width in pixels
+GAPSIZE = 10 # size of gap between boxes in pixels
+BOARDWIDTH = 10 # number of columns of icons
+BOARDHEIGHT = 7 # number of rows of icons
+assert (BOARDWIDTH * BOARDHEIGHT) % 2 == 0, 'Board needs to have an even number of boxes for pairs of matches.'
+XMARGIN = int((WINDOWWIDTH - (BOARDWIDTH * (BOXSIZE + GAPSIZE))) / 2)
+YMARGIN = int((WINDOWHEIGHT - (BOARDHEIGHT * (BOXSIZE + GAPSIZE))) / 2)
 
-BOARDWIDTH=10
-BOARDHEIGHT=7
+#            R    G    B
+GRAY     = (100, 100, 100)
+NAVYBLUE = ( 60,  60, 100)
+WHITE    = (255, 255, 255)
+RED      = (255,   0,   0)
+GREEN    = (  0, 255,   0)
+BLUE     = (  0,   0, 255)
+YELLOW   = (255, 255,   0)
+ORANGE   = (255, 128,   0)
+PURPLE   = (255,   0, 255)
+CYAN     = (  0, 255, 255)
 
-assert(BOARDWIDTH*BOARDHEIGHT)%2==0
-XMARGIN=((WINDOWIDTH-(BOARDWIDTH*(BOXSIZE+GAPSIZE)))/2)
-YMARGIN=((WINDOWHEIGHT-(BOARDHEIGHT*(BOXSIZE+GAPSIZE)))/2)
+BGCOLOR = NAVYBLUE
+LIGHTBGCOLOR = GRAY
+BOXCOLOR = WHITE
+HIGHLIGHTCOLOR = BLUE
 
-GRAY=(100,100,100)
-NAVYBLUE=(60,60,100)
-WHITE(255,255,255)
-RED=(255,0,0)
-GREEN=(0,255,0)
-BLUE=(0,0,255)
-YELLOW=(255,255,0)
-ORANGE(255,128,0)
-PURPLE=(255,0,255)
-CYAN=(0,255,255)
+DONUT = 'donut'
+SQUARE = 'square'
+DIAMOND = 'diamond'
+LINES = 'lines'
+OVAL = 'oval'
 
-BGCOLOR=NAVYBLUE
-LIGHTBGCOLOR=GRAY
-BOXCOLOR=WHITE
-HIGHLIGHTCOLOR=BLUE
-
-DONUT='donut'
-SQUARE='square'
-DIAMOND='diamond'
-LINES='lines'
-OVAL='oval'
-
-
-ALLCOLORS=(RED,GREEN,BLUE,YELLOW,ORANGE,PURPLE,CYAN)
-ALLSHAPRS=(DONUT,SQUARE,DIAMOND,LINES,OVAL)
-assert len(ALLCOLORS)*len(ALLSHAPES)*2>=BOARDWIDTH*BOARDLENGTH
-
+ALLCOLORS = (RED, GREEN, BLUE, YELLOW, ORANGE, PURPLE, CYAN)
+ALLSHAPES = (DONUT, SQUARE, DIAMOND, LINES, OVAL)
+assert len(ALLCOLORS) * len(ALLSHAPES) * 2 >= BOARDWIDTH * BOARDHEIGHT, "Board is too big for the number of shapes/colors defined."
 
 def main():
-    global FPSCLOCK,DISPLAYSURF
+    global FPSCLOCK, DISPLAYSURF
     pygame.init()
-    FPSCLOCK=pygame.time.Clock()
-    DISPLAYSURF=pygame.display.set_mode(WINDOWWIDTH,WINDOWHEIGHT)
+    FPSCLOCK = pygame.time.Clock()
+    DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
 
-    mousex=0
-    mousey=0
-
+    mousex = 0 # used to store x coordinate of mouse event
+    mousey = 0 # used to store y coordinate of mouse event
     pygame.display.set_caption('Memory Game')
 
+    mainBoard = getRandomizedBoard()
+    revealedBoxes = generateRevealedBoxesData(False)
 
-    mainboard=getRandomizedBoard()
-    revealedBoxes=generateRevealedBoxesData(False)
-
-    firstSelection=None
+    firstSelection = None # stores the (x, y) of the first box clicked.
 
     DISPLAYSURF.fill(BGCOLOR)
-
     startGameAnimation(mainBoard)
 
+    while True: # main game loop
+        mouseClicked = False
 
-    while True:
-        mouseClicked=False
+        DISPLAYSURF.fill(BGCOLOR) # drawing the window
+        drawBoard(mainBoard, revealedBoxes)
 
-        DISPLAYSURF.fill(BGCOLOR)
-        drawBoard(mainBoard,revealedBoxes)
+        for event in pygame.event.get(): # event handling loop
+            if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
+                pygame.quit()
+                sys.exit()
+            elif event.type == MOUSEMOTION:
+                mousex, mousey = event.pos
+            elif event.type == MOUSEBUTTONUP:
+                mousex, mousey = event.pos
+                mouseClicked = True
 
-         for event in pygameevent.get():
-             if event.type==QUIT or(event.type==KEYUP and event.key==K_ESCAPE):
-                 pygame.quit()
-                 sys.exit()
+        boxx, boxy = getBoxAtPixel(mousex, mousey)
+        if boxx != None and boxy != None:
+            # The mouse is currently over a box.
+            if not revealedBoxes[boxx][boxy]:
+                drawHighlightBox(boxx, boxy)
+            if not revealedBoxes[boxx][boxy] and mouseClicked:
+                revealBoxesAnimation(mainBoard, [(boxx, boxy)])
+                revealedBoxes[boxx][boxy] = True # set the box as "revealed"
+                if firstSelection == None: # the current box was the first box clicked
+                    firstSelection = (boxx, boxy)
+                else: # the current box was the second box clicked
+                    # Check if there is a match between the two icons.
+                    icon1shape, icon1color = getShapeAndColor(mainBoard, firstSelection[0], firstSelection[1])
+                    icon2shape, icon2color = getShapeAndColor(mainBoard, boxx, boxy)
 
-             elif event.type==MOUSEMOTION:
-                 mousex,mousey=event.pos
+                    if icon1shape != icon2shape or icon1color != icon2color:
+                        # Icons don't match. Re-cover up both selections.
+                        pygame.time.wait(1000) # 1000 milliseconds = 1 sec
+                        coverBoxesAnimation(mainBoard, [(firstSelection[0], firstSelection[1]), (boxx, boxy)])
+                        revealedBoxes[firstSelection[0]][firstSelection[1]] = False
+                        revealedBoxes[boxx][boxy] = False
+                    elif hasWon(revealedBoxes): # check if all pairs found
+                        gameWonAnimation(mainBoard)
+                        pygame.time.wait(2000)
 
-             elif event.type==MOUSEBUTTONUP:
-                 mousex,mousey=event.pos
-                 mouseClicked=True
+                        # Reset the board
+                        mainBoard = getRandomizedBoard()
+                        revealedBoxes = generateRevealedBoxesData(False)
 
-             boxx,boxy=getBoxAtPixel(mousex,mousey)
+                        # Show the fully unrevealed board for a second.
+                        drawBoard(mainBoard, revealedBoxes)
+                        pygame.display.update()
+                        pygame.time.wait(1000)
 
-             if boxx!=None and boxy!=None:
-                 if not revealedBoxes[boxx][boxy]:
-                     drawHighlightBox(boxx,boxy)
+                        # Replay the start game animation.
+                        startGameAnimation(mainBoard)
+                    firstSelection = None # reset firstSelection variable
 
-                  if not revealedBoxes[boxx][boxy] and mouseClicked:
-                      revealBoxesAnimation(mainBoard,[(boxx,boxy)])
-
-                      revealedBoxes[boxx][boxy]=True
-
-                      if firstSelection==None:
-                          firstSelection=(boxx,boxy)
-
-                      else:
-                          icon1shape,icon1color=getShapeAndColor(mainBoard,firstSelection[0],
-                                                                 firstSelection[1])
+        # Redraw the screen and wait a clock tick.
+        pygame.display.update()
+        FPSCLOCK.tick(FPS)
 
 
-                           icon2shape,icon2color=getShapeAndColor(mainBoard,boxx,boxy)
-
-                           if icon1shape1!=icon2shape or icon1color!=icon2color
-
-                           pygame.time.wait(1000)
-
-                           coverBoxesAnimation(mainBoard,[(firstSelection[0],firstSelection[1]),(boxx,boxy)])
-
-                           revealedBoxes[firstSelection[0],firstSelection[1]]=False
-                           revealedBoxes[boxx,boxy]=False
-
-                          elif hasWon(revealedBoxes): # check if all pairs found
-                                 gameWonAnimation(mainBoard)
-                                pygame.time.wait(2000)
-  
-                                  mainBoard = getRandomizedBoard()
-                                  revealedBoxes = generateRevealedBoxesData(False)
-
-                                      pygame.display.update()
-                                      pygame.time.wait(1000)
-
-                                       startGameAnimation(mainBoard)
-                            firstSelection = None
-
-                  pygame.display.update()
-                  FPSCLOCK.tick(FPS)
-
-    def generateRevealedBoxesData(val):
+def generateRevealedBoxesData(val):
     revealedBoxes = []
     for i in range(BOARDWIDTH):
         revealedBoxes.append([val] * BOARDHEIGHT)
     return revealedBoxes
 
-    def getRandomizedBoard():
+
+def getRandomizedBoard():
     # Get a list of every possible shape in every possible color.
     icons = []
     for color in ALLCOLORS:
@@ -156,6 +146,8 @@ def main():
             del icons[0] # remove the icons as we assign them
         board.append(column)
     return board
+
+
 def splitIntoGroupsOf(groupSize, theList):
     # splits a list into a list of lists, where the inner lists have at
     # most groupSize number of items.
@@ -293,4 +285,4 @@ def hasWon(revealedBoxes):
 
 
 if __name__ == '__main__':
-    main()          
+    main()
