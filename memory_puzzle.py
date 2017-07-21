@@ -1,4 +1,4 @@
-Credits: Referred to the book: invent games with python
+#Credits: Referred to the book: invent games with python
 
 
 import random, pygame, sys
